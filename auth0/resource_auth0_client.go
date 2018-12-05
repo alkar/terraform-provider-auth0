@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/helper/validation"
+	"github.com/iancoleman/strcase"
 	auth0 "github.com/yieldr/go-auth0"
 	"github.com/yieldr/go-auth0/management"
 )
@@ -562,14 +563,14 @@ func buildClient(d *schema.ResourceData) *management.Client {
 					addon := v.(map[string]interface{})
 
 					if len(addon) > 0 {
-						c.Addons[addonKey] = buildClientAddon(addon)
+						c.Addons[addonKey] = buildClientAddon(addon, strcase.ToLowerCamel)
 					}
 				}
 
 			default:
 				addon := addonValue.(map[string]interface{})
 				if len(addon) > 0 {
-					c.Addons[addonKey] = buildClientAddon(addon)
+					c.Addons[addonKey] = buildClientAddon(addon, nil)
 				}
 			}
 		}
@@ -594,33 +595,37 @@ func buildClient(d *schema.ResourceData) *management.Client {
 	return c
 }
 
-func buildClientAddon(d map[string]interface{}) map[string]interface{} {
+func buildClientAddon(d map[string]interface{}, keyNameFunc func(s string) string) map[string]interface{} {
 
 	addon := make(map[string]interface{})
 
 	for key, value := range d {
+		configKey := key
+		if keyNameFunc != nil {
+			configKey = keyNameFunc(key)
+		}
 
 		switch v := value.(type) {
 
 		case string:
 			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
-				addon[key] = i
+				addon[configKey] = i
 			} else if f, err := strconv.ParseFloat(v, 64); err == nil {
-				addon[key] = f
+				addon[configKey] = f
 			} else if b, err := strconv.ParseBool(v); err == nil {
-				addon[key] = b
+				addon[configKey] = b
 			} else {
-				addon[key] = v
+				addon[configKey] = v
 			}
 
 		case map[string]interface{}:
-			addon[key] = buildClientAddon(v)
+			addon[configKey] = buildClientAddon(v, keyNameFunc)
 
 		case []interface{}:
-			addon[key] = v
+			addon[configKey] = v
 
 		default:
-			addon[key] = v
+			addon[configKey] = v
 		}
 	}
 	return addon
